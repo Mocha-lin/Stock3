@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>bbb 投資戰情室</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --bg-color: #FDFBF7;
+            --sidebar-bg: #F5F2EB;
+            --text-primary: #2C3E50;
+            --accent-color: #8B7355;
+            --border-color: #E5E0D8;
+            --risk-red: #C0392B;
+            --risk-green: #218C74;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            font-family: 'Helvetica Neue', Arial, 'Heiti TC', sans-serif;
+            height: 100vh;
+            height: 100dvh;
+            overflow: hidden; 
+        }
+
+        /* 滾動條美化 */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #D1C7B7; border-radius: 4px; }
+
+        .table-header {
+            background-color: #EFEBE0;
+            color: #5D5D5D;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-weight: 600;
+        }
+        
+        .section-card {
+            background: white;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.015);
+            margin-bottom: 1.5rem;
+            padding: 1.5rem;
+        }
+
+        .category-header {
+            font-size: 0.75rem;
+            color: #8B7355;
+            font-weight: bold;
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+            padding-left: 0.5rem;
+            border-bottom: 2px solid #E5E0D8;
+            text-transform: uppercase;
+        }
+
+        .news-item {
+            padding: 0.5rem;
+            border-radius: 6px;
+            transition: background 0.2s;
+        }
+        .news-item:hover { background-color: #FAFAFA; }
+        
+        /* 響應式調整 */
+        @media (max-width: 768px) {
+            .main-container { flex-direction: column; }
+            .sidebar { width: 100% !important; height: auto !important; max-height: 250px; flex: none; }
+            .content { width: 100% !important; flex: 1; }
+        }
+    </style>
+</head>
+<body class="flex flex-col">
+
+    <!-- 頂部導航 -->
+    <header class="bg-[#ECE8DE] h-12 flex items-center px-6 border-b border-[#DCD6C9] shrink-0 justify-between">
+        <div class="font-bold text-lg tracking-widest text-[#5A4A42]">bbb ANALYTICS</div>
+        <button onclick="createNewEntry()" class="md:hidden text-[#8B7355] text-sm font-bold border border-[#8B7355] rounded px-2 py-1">
+            <i class="fas fa-plus"></i>
+        </button>
+    </header>
+
+    <!-- 主容器 -->
+    <div class="flex flex-1 overflow-hidden main-container">
+        
+        <!-- 左側邊欄 -->
+        <aside class="w-1/6 bg-[#F5F2EB] border-r border-[#DCD6C9] flex flex-col z-10 sidebar relative shadow-lg lg:shadow-none">
+            <div class="p-3 border-b border-[#E5E0D8] bg-[#F5F2EB] flex flex-col gap-3 shrink-0">
+                <div class="relative">
+                    <input type="text" id="searchInput" placeholder="搜尋代號或名稱..." 
+                           class="w-full bg-white border border-[#D1C7B7] rounded px-3 py-1.5 text-sm focus:outline-none focus:border-[#8B7355]">
+                    <i class="fas fa-search absolute right-3 top-2 text-gray-400 text-xs"></i>
+                </div>
+                <button onclick="createNewEntry()" class="w-full bg-[#8B7355] hover:bg-[#6d5a41] text-white py-2 rounded shadow transition text-sm flex items-center justify-center">
+                    <i class="fas fa-plus mr-1"></i> 新增分析
+                </button>
+            </div>
+            <div id="stockListContainer" class="flex-1 overflow-y-auto p-2 pb-10"></div>
+            <div class="h-4 bg-gradient-to-t from-[#E5E0D8]/50 to-transparent shrink-0"></div>
+        </aside>
+
+        <!-- 右側內容區 -->
+        <main class="w-5/6 flex-1 overflow-y-auto bg-white/50 p-6 content relative scroll-smooth" id="mainContent">
+            
+            <!-- JSON 輸入區 -->
+            <div id="jsonInputArea" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+                <div class="bg-white w-11/12 md:w-2/3 h-3/4 rounded-lg shadow-2xl flex flex-col p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold text-[#8B7355]">匯入 bbb 模型數據</h2>
+                        <button onclick="closeJsonInput()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times text-xl"></i></button>
+                    </div>
+                    <textarea id="jsonRawInput" class="flex-1 border border-gray-300 rounded p-4 font-mono text-sm bg-[#F9F9F9] focus:outline-none focus:border-[#8B7355]" 
+                              placeholder="請將 bbb 生成的 JSON 代碼完整貼於此處..."></textarea>
+                    <div class="mt-4 flex justify-end gap-3 flex-wrap">
+                        <button onclick="importSampleData()" class="text-gray-500 text-sm hover:underline px-4">匯入範例數據 (8039 台虹)</button>
+                        <button onclick="processJsonImport()" class="bg-[#8B7355] text-white px-6 py-2 rounded hover:bg-[#6d5a41] transition w-full md:w-auto">
+                            <i class="fas fa-file-import mr-2"></i>確認匯入
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 空白狀態 -->
+            <div id="emptyState" class="h-full flex flex-col items-center justify-center text-gray-400">
+                <i class="fas fa-chart-line text-6xl mb-4 text-[#D1C7B7]"></i>
+                <p class="text-lg">請選擇左側股票或新增分析</p>
+            </div>
+
+            <!-- 分析報告顯示區 -->
+            <div id="reportContainer" class="hidden max-w-7xl mx-auto space-y-6 pb-20">
+                
+                <!-- 標題 -->
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-end border-b-2 border-[#8B7355] pb-2 mb-6">
+                    <div class="mb-4 md:mb-0">
+                        <h1 class="text-3xl md:text-4xl font-bold text-[#2C3E50] tracking-tight flex items-center flex-wrap">
+                            <span id="stockId" class="text-[#8B7355] mr-2"></span>
+                            <span id="stockName"></span>
+                            <button onclick="deleteCurrentStock()" class="ml-4 text-xs text-gray-300 hover:text-red-400" title="刪除此報告"><i class="fas fa-trash"></i></button>
+                        </h1>
+                        <p class="text-sm text-gray-500 mt-1">更新日期：<span id="updateDate"></span> | 拆分備註：<span id="splitNote"></span></p>
+                    </div>
+                    <div class="text-left md:text-right w-full md:w-auto bg-gray-50 md:bg-transparent p-2 md:p-0 rounded">
+                        <div id="priceDisplay" class="text-3xl font-mono font-bold"></div>
+                        <div id="priceChange" class="text-sm font-medium"></div>
+                    </div>
+                </div>
+
+                <!-- 備忘錄 -->
+                <div class="section-card bg-[#FFFDF5] border-[#E8E0C0]">
+                    <h3 class="text-sm font-bold text-[#8B7355] mb-2 uppercase flex items-center"><i class="fas fa-sticky-note mr-2"></i>投資筆記 (Memo)</h3>
+                    <textarea id="memoArea" class="w-full bg-transparent border-none resize-none text-gray-700 focus:ring-0 text-base outline-none" rows="2" placeholder="在此輸入您的個人筆記，系統將自動儲存..."></textarea>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- 基本面與消息 -->
+                    <div class="space-y-6">
+                        <div class="section-card">
+                            <h3 class="text-lg font-bold text-[#2C3E50] mb-3 border-b pb-2">護城河與產業鏈</h3>
+                            <div class="space-y-2 text-sm">
+                                <p><span class="font-bold text-gray-600">狀態：</span> <span id="moatStatus"></span></p>
+                                <p><span class="font-bold text-gray-600">上下游：</span> <span id="supplyChain"></span></p>
+                                <p><span class="font-bold text-gray-600">競爭者：</span> <span id="competitors"></span></p>
+                                <div class="p-3 bg-gray-50 rounded mt-3 text-gray-700 italic leading-relaxed" id="moatDesc"></div>
+                            </div>
+                        </div>
+
+                        <!-- 消息面 (修正箭頭) -->
+                        <div class="section-card">
+                            <h3 class="text-lg font-bold text-[#2C3E50] mb-4 border-b pb-2">近日消息與利多利空</h3>
+                            <div id="newsList" class="flex flex-col gap-2"></div>
+                        </div>
+                    </div>
+
+                    <!-- PE 河流圖 (新增) -->
+                    <div class="section-card flex flex-col">
+                        <div class="flex justify-between items-center border-b pb-2 mb-3">
+                            <h3 class="text-lg font-bold text-[#2C3E50]">PE 河流圖 (Valuation)</h3>
+                            <span class="text-xs text-gray-500" id="peRiverStatus"></span>
+                        </div>
+                        <div class="flex-1 min-h-[300px]">
+                            <canvas id="peRiverChart"></canvas>
+                        </div>
+                        <div class="mt-2 text-xs text-gray-500 text-center">
+                            灰色區間代表歷史 PE 10x - 20x 區間，線條為實際股價
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 財務圖表 (營收) -->
+                 <div class="section-card">
+                    <div class="flex justify-between items-center border-b pb-2 mb-3">
+                        <h3 class="text-lg font-bold text-[#2C3E50]">月營收與年增率趨勢</h3>
+                    </div>
+                    <div class="h-[300px]">
+                        <canvas id="financialChart"></canvas>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2 mt-4 text-center text-sm">
+                        <div class="p-2 bg-gray-50 rounded">
+                            <div class="text-gray-500 text-xs mb-1">P/B 比</div>
+                            <div id="pbValue" class="font-bold text-lg text-gray-800"></div>
+                        </div>
+                        <div class="p-2 bg-gray-50 rounded">
+                            <div class="text-gray-500 text-xs mb-1">ROE</div>
+                            <div id="roeValue" class="font-bold text-lg text-gray-800"></div>
+                        </div>
+                        <div class="p-2 bg-gray-50 rounded">
+                            <div class="text-gray-500 text-xs mb-1">ROA</div>
+                            <div id="roaValue" class="font-bold text-lg text-gray-800"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                     <!-- EPS 表格 -->
+                    <div class="section-card">
+                        <h3 class="text-lg font-bold text-[#2C3E50] mb-3">EPS 預估 (龍頭券商)</h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm text-left whitespace-nowrap">
+                                <thead class="table-header">
+                                    <tr>
+                                        <th class="p-2 rounded-l">日期</th>
+                                        <th class="p-2">毛利%</th>
+                                        <th class="p-2">淨利%</th>
+                                        <th class="p-2">EPS</th>
+                                        <th class="p-2 rounded-r">累計</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="epsTableBody" class="divide-y divide-gray-100"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- 月營收表格 -->
+                    <div class="section-card">
+                        <h3 class="text-lg font-bold text-[#2C3E50] mb-3">月營收 (WantGoo)</h3>
+                        <div class="overflow-x-auto max-h-64">
+                            <table class="w-full text-sm text-left whitespace-nowrap">
+                                <thead class="table-header">
+                                    <tr>
+                                        <th class="p-2 rounded-l">月份</th>
+                                        <th class="p-2">營收</th>
+                                        <th class="p-2">YoY%</th>
+                                        <th class="p-2 rounded-r">MoM%</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="revenueTableBody" class="divide-y divide-gray-100"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 技術分析 -->
+                <div class="section-card border-l-[6px] border-[#8B7355] relative overflow-hidden">
+                    <div class="absolute right-0 top-0 text-[150px] opacity-5 text-[#8B7355] pointer-events-none"><i class="fas fa-chart-area"></i></div>
+                    
+                    <div class="flex justify-between items-center mb-4 border-b pb-2 relative z-10">
+                        <h3 class="text-lg font-bold text-[#2C3E50]">技術分析 <span class="text-sm font-normal text-gray-500 ml-2">結構校正 C: <span id="correctionC" class="font-mono font-bold"></span></span></h3>
+                        <div id="bollingerAlert" class="hidden px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide shadow-sm"></div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
+                        <div>
+                            <div class="mb-4">
+                                <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">K 線型態分析</h4>
+                                <p class="text-sm text-gray-700 leading-relaxed text-justify font-medium" id="klineAnalysis"></p>
+                            </div>
+                            <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                                <div class="flex items-center mb-2">
+                                    <i class="fas fa-ruler-combined text-gray-400 mr-2"></i>
+                                    <span class="text-xs text-gray-500 uppercase font-bold">布林通道</span>
+                                </div>
+                                <p id="bollingerDesc" class="text-sm text-gray-800"></p>
+                            </div>
+                             <div class="mt-4 flex items-center">
+                                <span class="text-xs text-gray-500 uppercase font-bold mr-2">目前多空狀態：</span>
+                                <span id="marketStatus" class="text-sm font-bold text-[#8B7355] px-2 py-0.5 bg-[#F5F2EB] rounded"></span>
+                            </div>
+                        </div>
+                        
+                        <!-- 價格預測 -->
+                        <div class="space-y-3 pt-2">
+                            <div class="flex justify-between items-center p-3 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition">
+                                <span class="text-xs font-bold text-gray-500">未來 30 天</span>
+                                <span id="pred30" class="font-mono font-bold text-gray-800"></span>
+                            </div>
+                            <div class="flex justify-between items-center p-3 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition">
+                                <span class="text-xs font-bold text-gray-500">未來 180 天</span>
+                                <span id="pred180" class="font-mono font-bold text-gray-800"></span>
+                            </div>
+                            <div class="flex justify-between items-center p-3 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition">
+                                <span class="text-xs font-bold text-gray-500">未來 360 天</span>
+                                <span id="pred360" class="font-mono font-bold text-gray-800"></span>
+                            </div>
+                            <div class="mt-4 p-4 bg-gradient-to-r from-[#F5F2EB] to-white border border-[#E5E0D8] rounded-lg text-center shadow-inner">
+                                <span class="text-xs text-[#8B7355] block mb-1 uppercase tracking-widest">建議進場區間</span>
+                                <span id="entryZone" class="text-xl font-bold text-[#2C3E50]"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 股利 -->
+                <div class="section-card">
+                    <h3 class="text-lg font-bold text-[#2C3E50] mb-3">除權息與年化報酬率</h3>
+                    <div class="flex flex-col md:flex-row gap-6">
+                        <div class="w-full md:w-1/2">
+                            <div class="bg-gray-50 p-3 rounded mb-4 text-sm">
+                                <p class="mb-1"><span class="font-bold text-gray-600">股利資訊：</span> <span id="dividendInfo"></span></p>
+                                <p><span class="font-bold text-[#8B7355]">除權息日期：</span> <span id="exDividendDate"></span></p>
+                            </div>
+                            <div class="h-48">
+                                <canvas id="dividendChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-1/2 flex flex-col justify-center">
+                            <div class="p-6 bg-[#F9F7F1] border border-[#E5E0D8] rounded-lg text-center shadow-sm">
+                                <div class="text-xs text-gray-500 mb-2 uppercase tracking-wide">接續年次預估年化報酬</div>
+                                <div id="projectedReturn" class="text-3xl font-bold text-[#8B7355]"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="h-10"></div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // --- State Management ---
+        let stocks = [];
+        let currentStockId = null;
+        let financialChartInstance = null;
+        let dividendChartInstance = null;
+        let peRiverChartInstance = null; // New
+
+        window.onload = function() {
+            loadFromStorage();
+            renderSidebar();
+        };
+
+        function loadFromStorage() {
+            const saved = localStorage.getItem('bbb_stocks');
+            if (saved) { stocks = JSON.parse(saved); }
+        }
+
+        function saveToStorage() {
+            localStorage.setItem('bbb_stocks', JSON.stringify(stocks));
+        }
+        
+        function deleteCurrentStock() {
+            if(!currentStockId) return;
+            if(confirm('確定要刪除 ' + currentStockId + ' 的分析報告嗎？')) {
+                stocks = stocks.filter(s => s.id !== currentStockId);
+                saveToStorage();
+                currentStockId = null;
+                renderSidebar();
+                document.getElementById('reportContainer').classList.add('hidden');
+                document.getElementById('emptyState').classList.remove('hidden');
+            }
+        }
+
+        function createNewEntry() {
+            document.getElementById('jsonInputArea').classList.remove('hidden');
+            document.getElementById('jsonRawInput').value = '';
+            document.getElementById('jsonRawInput').focus();
+        }
+
+        function closeJsonInput() {
+            document.getElementById('jsonInputArea').classList.add('hidden');
+        }
+
+        function importSampleData() {
+            const sample = {
+                "id": "8039",
+                "name": "台虹",
+                "category": "上游材料",
+                "lastUpdated": "2025-12-26",
+                "basicInfo": {
+                    "price": "90.40", "change": "-1.50", "changePercent": "-1.63%", "splitNote": "2024配發0.5元股票", "riskStatus": "correction", "riskLabel": "回檔"
+                },
+                "news": [
+                    {"date": "2025-12-08", "title": "11月營收 9.03億元，年增21.45%，淡季不淡", "type": "positive"},
+                    {"date": "2025-11-26", "title": "法說會釋出展望，M9等級材料2026年放量", "type": "positive"},
+                    {"date": "2025-11-06", "title": "三大新材料引擎發動，半導體先進封裝材料送樣", "type": "positive"},
+                    {"date": "2025-10-25", "title": "Q3 獲利優於預期，受惠匯兌收益", "type": "positive"}
+                ],
+                "moat": {
+                    "status": "窄護城河 (轉型擴寬中)", "supplyChain": "上游:銅箔, PI膜; 下游:臻鼎", "competitors": "亞電, 杜邦", "description": "全球前三大FCCL廠，正由消費性電子轉型至高頻高速(AI Server)與半導體先進封裝材料，技術壁壘逐漸墊高。"
+                },
+                "financials": {
+                    "epsEstimates": [
+                        {"date": "2024", "grossMargin": "22.5", "netMargin": "11.2", "eps": "3.60", "cumulativeEps": "3.60"},
+                        {"date": "2025(預)", "grossMargin": "24.1", "netMargin": "12.5", "eps": "4.25", "cumulativeEps": "7.85"},
+                        {"date": "2026(預)", "grossMargin": "26.0", "netMargin": "14.0", "eps": "5.50", "cumulativeEps": "13.35"}
+                    ],
+                    "revenue": [
+                         {"month": "2025-01", "amount": "7.85億", "yoy": "+12.5%", "mom": "-5.2%"},
+                         {"month": "2025-02", "amount": "6.90億", "yoy": "+8.2%", "mom": "-12.1%"},
+                         {"month": "2025-03", "amount": "8.50億", "yoy": "+15.3%", "mom": "+23.2%"},
+                         {"month": "2025-04", "amount": "8.80億", "yoy": "+18.1%", "mom": "+3.5%"},
+                         {"month": "2025-05", "amount": "9.10億", "yoy": "+16.5%", "mom": "+3.4%"},
+                         {"month": "2025-06", "amount": "8.95億", "yoy": "+14.2%", "mom": "-1.6%"},
+                         {"month": "2025-07", "amount": "9.25億", "yoy": "+19.8%", "mom": "+3.3%"},
+                         {"month": "2025-08", "amount": "9.65億", "yoy": "+15.6%", "mom": "+4.3%"},
+                         {"month": "2025-09", "amount": "9.88億", "yoy": "+22.1%", "mom": "+2.4%"},
+                         {"month": "2025-10", "amount": "9.52億", "yoy": "+25.6%", "mom": "-3.6%"},
+                         {"month": "2025-11", "amount": "9.03億", "yoy": "+21.4%", "mom": "-5.1%"},
+                         {"month": "2025-12(預)", "amount": "8.90億", "yoy": "+18.5%", "mom": "-1.4%"}
+                    ],
+                    "peRiver": {"currentPE": "21.2", "position": "偏高", "status": "重估(Re-rating)", "discrepancyNote": ""},
+                    "pb": "2.24", "roe": "13.12%", "roa": "7.83%"
+                },
+                "technical": {
+                    "analysis": "股價自52週高點105.5回落，目前跌破月線支撐，在季線附近(約88-90元)尋求支撐。量能萎縮顯示賣壓減輕，日KD指標低檔鈍化，等待止跌訊號。",
+                    "predictions": {"days30": "88-95", "days180": "100-110", "days360": "120+", "entryZone": "85-88"},
+                    "correctionC": "0.85",
+                    "bollinger": {"status": "lower_band_touch", "alert": "接近超賣", "description": "股價回測布林通道下軌，乖離率擴大，短線有機會醞釀反彈。"},
+                    "marketStatus": "回檔整理"
+                },
+                "dividend": {
+                    "info": "預估2025配3.0元",
+                    "exDate": "2025-07-15 (預估)",
+                    "annualReturns": [{"year": "2023", "return": "2.62%"}, {"year": "2024", "return": "4.50%"}, {"year": "2025", "return": "2.76%"}],
+                    "projectedReturn": "3.5%-4.5%"
+                },
+                "chartsData": {
+                    "revenueTrend": [785, 690, 850, 880, 910, 895, 925, 965, 988, 952, 903, 890],
+                    "yoyTrend": [12.5, 8.2, 15.3, 18.1, 16.5, 14.2, 19.8, 15.6, 22.1, 25.6, 21.4, 18.5],
+                    "peRiverData": {
+                        "dates": ["2023-Q1", "2023-Q2", "2023-Q3", "2023-Q4", "2024-Q1", "2024-Q2", "2024-Q3", "2024-Q4", "2025-Q1", "2025-Q2", "2025-Q3", "2025-Q4"],
+                        "price": [45, 52, 58, 65, 75, 85, 95, 105, 98, 92, 95, 90.4],
+                        "pe12": [30, 32, 35, 38, 42, 45, 48, 52, 54, 56, 58, 60],
+                        "pe16": [40, 42, 46, 50, 56, 60, 64, 69, 72, 75, 78, 80],
+                        "pe20": [50, 53, 58, 63, 70, 75, 80, 86, 90, 94, 98, 100]
+                    }
+                },
+                "memo": "" 
+            };
+            document.getElementById('jsonRawInput').value = JSON.stringify(sample, null, 2);
+        }
+
+        function processJsonImport() {
+            const raw = document.getElementById('jsonRawInput').value;
+            try {
+                const data = JSON.parse(raw);
+                const index = stocks.findIndex(s => s.id === data.id);
+                
+                if(index !== -1 && stocks[index].memo) { data.memo = stocks[index].memo; } else { data.memo = ""; }
+
+                // Default category logic if not present
+                if(!data.category) {
+                     data.category = "一般持股"; 
+                     if(data.moat && (data.moat.supplyChain.includes("上游") || data.moat.description.includes("材料"))) data.category = "上游材料";
+                }
+
+                if (index !== -1) { stocks[index] = data; } else { stocks.unshift(data); }
+                
+                saveToStorage();
+                renderSidebar();
+                loadStock(data.id);
+                closeJsonInput();
+            } catch (e) {
+                alert("JSON 格式錯誤，請檢查代碼是否完整。\n" + e.message);
+            }
+        }
+
+        function renderSidebar() {
+            const container = document.getElementById('stockListContainer');
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            container.innerHTML = '';
+            const categories = {};
+            
+            stocks.forEach(stock => {
+                if (search && !stock.id.includes(search) && !stock.name.includes(search)) return;
+                const cat = stock.category || "未分類";
+                if (!categories[cat]) categories[cat] = [];
+                categories[cat].push(stock);
+            });
+
+            for (const [catName, items] of Object.entries(categories)) {
+                const catHeader = document.createElement('div');
+                catHeader.className = 'category-header';
+                catHeader.innerText = catName;
+                container.appendChild(catHeader);
+
+                items.forEach(stock => {
+                    const el = document.createElement('div');
+                    el.className = `p-3 mb-1 rounded cursor-pointer draggable-item hover:bg-white transition flex justify-between items-center ${stock.id === currentStockId ? 'bg-white shadow border-l-4 border-[#8B7355]' : 'border border-transparent'}`;
+                    
+                    let statusColor = "text-gray-400";
+                    if(stock.basicInfo.change.includes("+")) { statusColor = "text-[#C0392B]"; }
+                    if(stock.basicInfo.change.includes("-")) { statusColor = "text-[#218C74]"; }
+                    
+                    let alertDot = "";
+                    if (stock.technical && stock.technical.bollinger && stock.technical.bollinger.alert) {
+                         alertDot = `<span class="h-2 w-2 rounded-full bg-red-500 animate-ping absolute top-2 right-2"></span>`;
+                    }
+
+                    el.innerHTML = `
+                        <div class="relative w-full">
+                            <div class="flex justify-between items-center">
+                                <span class="font-bold text-[#2C3E50]">${stock.id} ${stock.name}</span>
+                                <span class="text-xs ${statusColor} font-mono">${stock.basicInfo.changePercent}</span>
+                            </div>
+                            <div class="flex justify-between mt-1">
+                                <span class="text-xs text-gray-500 truncate w-24">${stock.technical.marketStatus || '分析中'}</span>
+                                <span class="text-xs bg-gray-200 px-1 rounded text-gray-600">${stock.basicInfo.price}</span>
+                            </div>
+                            ${alertDot}
+                        </div>
+                    `;
+                    el.onclick = () => loadStock(stock.id);
+                    container.appendChild(el);
+                });
+            }
+        }
+        document.getElementById('searchInput').addEventListener('input', renderSidebar);
+
+        function loadStock(id) {
+            currentStockId = id;
+            const data = stocks.find(s => s.id === id);
+            if (!data) return;
+
+            document.getElementById('emptyState').classList.add('hidden');
+            document.getElementById('reportContainer').classList.remove('hidden');
+            renderSidebar(); 
+
+            document.getElementById('stockId').innerText = data.id;
+            document.getElementById('stockName').innerText = data.name;
+            document.getElementById('updateDate').innerText = data.lastUpdated;
+            document.getElementById('splitNote').innerText = data.basicInfo.splitNote;
+            
+            const priceEl = document.getElementById('priceDisplay');
+            const changeEl = document.getElementById('priceChange');
+            priceEl.innerText = data.basicInfo.price;
+            changeEl.innerText = `${data.basicInfo.change} (${data.basicInfo.changePercent})`;
+            
+            if (data.basicInfo.change.includes('+')) {
+                priceEl.className = "text-3xl font-mono font-bold text-[#C0392B]";
+                changeEl.className = "text-sm font-medium text-[#C0392B]";
+            } else if (data.basicInfo.change.includes('-')) {
+                priceEl.className = "text-3xl font-mono font-bold text-[#218C74]";
+                changeEl.className = "text-sm font-medium text-[#218C74]";
+            } else {
+                priceEl.className = "text-3xl font-mono font-bold text-gray-800";
+                changeEl.className = "text-sm font-medium text-gray-800";
+            }
+
+            const memoArea = document.getElementById('memoArea');
+            memoArea.value = data.memo || "";
+            memoArea.oninput = function() { data.memo = this.value; saveToStorage(); };
+
+            document.getElementById('moatStatus').innerText = data.moat.status;
+            document.getElementById('supplyChain').innerText = data.moat.supplyChain;
+            document.getElementById('competitors').innerText = data.moat.competitors;
+            document.getElementById('moatDesc').innerText = data.moat.description;
+
+            // News Render (Arrows)
+            const newsList = document.getElementById('newsList');
+            newsList.innerHTML = '';
+            data.news.forEach(n => {
+                const el = document.createElement('div');
+                el.className = "news-item text-sm flex items-start";
+                
+                let icon = "";
+                if (n.type === 'positive') { icon = `<i class="fas fa-caret-up text-[#C0392B] mr-2 text-lg"></i>`; }
+                else if (n.type === 'negative') { icon = `<i class="fas fa-caret-down text-[#218C74] mr-2 text-lg"></i>`; }
+                else { icon = `<i class="fas fa-circle text-gray-300 mr-2 text-[6px] mt-2"></i>`; }
+                
+                el.innerHTML = `
+                    <div class="mt-0.5">${icon}</div>
+                    <div class="flex flex-col">
+                         <span class="text-xs text-gray-400 font-mono mb-0.5">${n.date}</span>
+                         <span class="text-gray-700 font-medium leading-snug">${n.title}</span>
+                    </div>
+                `;
+                newsList.appendChild(el);
+            });
+
+            document.getElementById('pbValue').innerText = data.financials.pb;
+            document.getElementById('roeValue').innerText = data.financials.roe;
+            document.getElementById('roaValue').innerText = data.financials.roa || "--"; 
+            document.getElementById('peRiverStatus').innerText = `目前 PE: ${data.financials.peRiver.currentPE}`;
+
+            renderTable('epsTableBody', data.financials.epsEstimates, ['date', 'grossMargin', 'netMargin', 'eps', 'cumulativeEps']);
+            renderTable('revenueTableBody', data.financials.revenue, ['month', 'amount', 'yoy', 'mom']);
+
+            document.getElementById('klineAnalysis').innerText = data.technical.analysis;
+            document.getElementById('pred30').innerText = data.technical.predictions.days30;
+            document.getElementById('pred180').innerText = data.technical.predictions.days180;
+            document.getElementById('pred360').innerText = data.technical.predictions.days360;
+            document.getElementById('entryZone').innerText = data.technical.predictions.entryZone;
+            document.getElementById('correctionC').innerText = data.technical.correctionC;
+            document.getElementById('marketStatus').innerText = data.technical.marketStatus;
+
+            const bollingerAlert = document.getElementById('bollingerAlert');
+            document.getElementById('bollingerDesc').innerText = data.technical.bollinger.description;
+            
+            bollingerAlert.className = "hidden px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide shadow-sm"; 
+            if (data.technical.bollinger.alert) {
+                bollingerAlert.classList.remove('hidden');
+                bollingerAlert.innerText = data.technical.bollinger.alert;
+                if(data.technical.bollinger.alert.includes("超買") || data.technical.bollinger.status === 'upper_band_touch') {
+                    bollingerAlert.classList.add('alert-flash-red', 'bg-red-50');
+                } else if (data.technical.bollinger.alert.includes("破底") || data.technical.bollinger.status === 'lower_band_touch') {
+                    bollingerAlert.classList.add('alert-flash-green', 'bg-green-50');
+                } else {
+                     bollingerAlert.classList.add('bg-yellow-100', 'text-yellow-800');
+                }
+            }
+
+            document.getElementById('dividendInfo').innerText = data.dividend.info;
+            document.getElementById('exDividendDate').innerText = data.dividend.exDate || "尚未公布"; // New
+            document.getElementById('projectedReturn').innerText = data.dividend.projectedReturn;
+
+            renderCharts(data);
+        }
+
+        function renderTable(id, data, keys) {
+            const tbody = document.getElementById(id);
+            tbody.innerHTML = '';
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                keys.forEach(key => {
+                    const td = document.createElement('td');
+                    td.className = "p-2";
+                    td.innerText = row[key];
+                    if(row[key].includes && (row[key].includes('+') || row[key].includes('-'))) {
+                        td.className += row[key].includes('+') ? " text-[#C0392B]" : " text-[#218C74]";
+                    }
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderCharts(data) {
+            if (financialChartInstance) financialChartInstance.destroy();
+            if (dividendChartInstance) dividendChartInstance.destroy();
+            if (peRiverChartInstance) peRiverChartInstance.destroy();
+
+            // 1. Financial Chart (Rev + YoY)
+            const ctxFin = document.getElementById('financialChart').getContext('2d');
+            let yoyData = [];
+            if(data.chartsData.yoyTrend) {
+                yoyData = data.chartsData.yoyTrend;
+            } else if (data.financials.revenue) {
+                yoyData = data.financials.revenue.map(r => parseFloat(r.yoy.replace('%','').replace('+','')));
+            }
+            const revData = data.chartsData.revenueTrend || [];
+            
+            financialChartInstance = new Chart(ctxFin, {
+                type: 'bar',
+                data: {
+                    labels: data.financials.revenue.map(r => r.month).reverse(),
+                    datasets: [
+                        {
+                            type: 'bar', label: '月營收 (億)', data: revData, backgroundColor: '#D1C7B7', hoverBackgroundColor: '#8B7355', yAxisID: 'y', order: 2
+                        },
+                        {
+                            type: 'line', label: '年增率 YoY (%)', data: yoyData.length === revData.length ? yoyData : yoyData.reverse(), borderColor: '#8B7355', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 3, tension: 0.3, yAxisID: 'y1', order: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+                    plugins: { legend: { position: 'bottom' } },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: { type: 'linear', display: true, position: 'left', grid: { borderDash: [2, 2], color: '#f0f0f0' } },
+                        y1: { type: 'linear', display: true, position: 'right', grid: { display: false } }
+                    }
+                }
+            });
+
+            // 2. PE River Chart (New)
+            if (data.chartsData.peRiverData) {
+                const ctxPe = document.getElementById('peRiverChart').getContext('2d');
+                const riverData = data.chartsData.peRiverData;
+                
+                peRiverChartInstance = new Chart(ctxPe, {
+                    type: 'line',
+                    data: {
+                        labels: riverData.dates,
+                        datasets: [
+                            {
+                                label: '股價',
+                                data: riverData.price,
+                                borderColor: '#2C3E50',
+                                borderWidth: 3,
+                                pointBackgroundColor: '#2C3E50',
+                                tension: 0.3
+                            },
+                            {
+                                label: 'PE 20x',
+                                data: riverData.pe20,
+                                borderColor: 'rgba(192, 57, 43, 0.3)', // Red ish
+                                borderWidth: 1,
+                                pointRadius: 0,
+                                fill: false,
+                                borderDash: [5, 5]
+                            },
+                            {
+                                label: 'PE 16x',
+                                data: riverData.pe16,
+                                borderColor: 'rgba(139, 115, 85, 0.3)', // Brown
+                                borderWidth: 1,
+                                pointRadius: 0,
+                                fill: '-1', // Fill to previous dataset
+                                backgroundColor: 'rgba(192, 57, 43, 0.05)'
+                            },
+                            {
+                                label: 'PE 12x',
+                                data: riverData.pe12,
+                                borderColor: 'rgba(33, 140, 116, 0.3)', // Green ish
+                                borderWidth: 1,
+                                pointRadius: 0,
+                                fill: '-1', // Fill to previous
+                                backgroundColor: 'rgba(139, 115, 85, 0.1)'
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { position: 'bottom' } },
+                        scales: {
+                            y: { grid: { color: '#f0f0f0' } }
+                        },
+                        elements: { point: { radius: 2 } }
+                    }
+                });
+            }
+
+
+            // 3. Dividend Chart
+            const ctxDiv = document.getElementById('dividendChart').getContext('2d');
+            const years = data.dividend.annualReturns.map(d => d.year);
+            const returns = data.dividend.annualReturns.map(d => parseFloat(d.return));
+
+            dividendChartInstance = new Chart(ctxDiv, {
+                type: 'bar',
+                data: {
+                    labels: years,
+                    datasets: [{
+                        label: '年化報酬率 (%)', data: returns, backgroundColor: returns.map(v => v > 0 ? '#C0392B' : '#218C74'), borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                    scales: { y: { grid: { color: '#f0f0f0' } } }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
